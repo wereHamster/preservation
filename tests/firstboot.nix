@@ -16,18 +16,6 @@ pkgs:
         };
       };
 
-      systemd.services.systemd-machine-id-commit = {
-        unitConfig.ConditionPathIsMountPoint = [
-          "" "/state/etc/machine-id"
-        ];
-        serviceConfig.ExecStart = [
-          "" "systemd-machine-id-setup --commit --root /state"
-        ];
-      };
-
-      # test-specific configuration below
-      boot.initrd.systemd.enable = true;
-
       networking.useNetworkd = true;
 
       virtualisation = {
@@ -56,7 +44,9 @@ pkgs:
 
       with subtest("Machine ID linked and populated"):
         machine.succeed("test -L /etc/machine-id")
-        machine.succeed("test -s /state/etc/machine-id")
+        machine.wait_for_unit("systemd-machine-id-commit.service")
+        machine.fail("mountpoint /state/etc/machine-id")
+        t.assertRegex(machine.succeed("cat /state/etc/machine-id"), "^[0-9a-f]{32}\n$")
 
       with subtest("Machine ID persisted"):
         first_id = machine.succeed("cat /etc/machine-id")

@@ -42,6 +42,7 @@ pkgs:
       };
 
       image.repart = {
+        enable = true;
         verityStore.enable = true;
 
         inherit (config.system) name;
@@ -73,8 +74,6 @@ pkgs:
         };
       };
 
-      boot.initrd.systemd.enable = true;
-
       networking.useNetworkd = true;
 
       services.userborn = {
@@ -94,6 +93,7 @@ pkgs:
             options = [ "mode=0755" ];
           };
           "/nix/store" = {
+            fsType = "none";
             device = "/usr/nix/store";
             options = [ "bind" ];
           };
@@ -125,7 +125,7 @@ pkgs:
         "-f",
         "qcow2",
         "-b",
-        "${nodes.machine.system.build.finalImage}/${nodes.machine.image.fileName}",
+        "${nodes.machine.system.build.image}/${nodes.machine.image.fileName}",
         "-F",
         "raw",
         tmp_disk_image.name,
