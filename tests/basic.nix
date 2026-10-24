@@ -67,10 +67,6 @@ in
         };
       };
 
-      # systemd-machine-id-commit.service would fail, but it is not relevant
-      # in this specific setup for a persistent machine-id so we disable it
-      systemd.suppressedSystemUnits = [ "systemd-machine-id-commit.service" ];
-
       # to test sshd with preserved host keys
       services.openssh.enable = true;
 
@@ -176,13 +172,13 @@ in
       machine.start(allow_reboot=True)
       machine.wait_for_unit("default.target")
 
-      with subtest("Empty machine ID files and bindmount prepared in initrd"):
+      with subtest("Uninitialized machine ID files and bindmount prepared in initrd"):
         machine.succeed("test -f /sysroot/etc/machine-id")
         machine.succeed("test -f /sysroot/state/etc/machine-id")
 
-        # files are expected to be empty at this point
-        machine.fail("test -s /sysroot/etc/machine-id")
-        machine.fail("test -s /sysroot/state/etc/machine-id")
+        # the persistent file is bind-mounted and marks this as the first boot
+        t.assertEqual(machine.succeed("cat /sysroot/etc/machine-id"), "uninitialized")
+        t.assertEqual(machine.succeed("cat /sysroot/state/etc/machine-id"), "uninitialized")
 
         mounts = machine.succeed("mount")
         t.assertIn("/sysroot/etc/machine-id", mounts, "/sysroot/etc/machine-id not in mounts")
@@ -197,6 +193,11 @@ in
       with subtest("Machine ID file still mounted and now populated"):
         machine.succeed("mountpoint /etc/machine-id")
         machine.succeed("test -s /etc/machine-id")
+
+      with subtest("Transient machine ID committed to the persistent prefix on first boot"):
+        machine.require_unit_state("first-boot-complete.target", "active")
+        machine.wait_for_unit("systemd-machine-id-commit.service")
+        t.assertEqual(machine.succeed("cat /state/etc/machine-id"), machine.succeed("cat /etc/machine-id"))
 
       with subtest("Type, permissions and ownership after first boot completed"):
         for file in all_files:
@@ -253,6 +254,10 @@ in
         machine.succeed("test -s /etc/machine-id")
         new_machine_id = machine.succeed("cat /etc/machine-id")
         t.assertEqual(new_machine_id, machine_id, "machine id changed")
+
+        # not a first boot anymore, nothing to commit
+        machine.require_unit_state("first-boot-complete.target", "inactive")
+        machine.fail("systemctl is-failed systemd-machine-id-commit.service")
 
         # check that state in file was also preserved
         machine.succeed("test -s ${butzHome}/bar")

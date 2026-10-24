@@ -139,6 +139,9 @@ rec {
   onlyIntermediates =
     forInitrd: builtins.filter (conf: conf.how == "_intermediate" && conf.inInitrd == forInitrd);
 
+  # whether a file configuration preserves the machine-id in the initrd
+  isMachineId = fileConfig: fileConfig.file == "/etc/machine-id" && fileConfig.inInitrd;
+
   # creates tmpfiles.d rules for the `settings` option of the tmpfiles module from a `preserveAtSubmodule`
   mkTmpfilesRules =
     forInitrd: preserveAt: stateConfig:
@@ -348,7 +351,8 @@ rec {
             ];
           };
         }
-        // lib.optionalAttrs fileConfig.createLinkTarget {
+        # systemd does not create the machine-id through a dangling symlink
+        // lib.optionalAttrs (fileConfig.createLinkTarget || isMachineId fileConfig) {
           # file on persistent storage
           "${persistentFilePath}".f = {
             inherit (fileConfig) user group mode;
