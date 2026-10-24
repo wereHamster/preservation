@@ -18,7 +18,13 @@ in
   config = lib.mkIf cfg.enable {
     assertions = [
       {
-        assertion = config.boot.initrd.systemd.enable;
+        # newer nixpkgs removed scripted initrd and with it this option,
+        # reading the removed option throws, which means systemd is used
+        assertion =
+          let
+            r = builtins.tryEval config.boot.initrd.systemd.enable;
+          in
+          !r.success || r.value;
         message = "This module cannot be used with scripted initrd.";
       }
     ];
